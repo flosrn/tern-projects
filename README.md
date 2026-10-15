@@ -12,17 +12,37 @@ A [Tern](https://stencil.so/tern) sidebar for curated projects and agent chat hi
 ## Requirements and installation
 
 - Current desktop Tern with plugin blocks, native overlays, and context menus.
-- Rust/cargo (current stable recommended).
+- **Apple Silicon Mac (macOS 11 or later)** for the bundled binary. No Rust installation is needed.
 - At least one supported harness CLI for starting chats; existing history can still be indexed without its CLI.
 
 ```sh
+tern plugin install github.com/thegeneralist01/tern-projects
+```
+
+The repository includes the Apple Silicon macOS binary at `bin/tern-projects`; Tern installs it with the plugin. No separate download or build step is required. Open **Projects** from Tern's command palette after installation.
+
+To update the installed copy:
+
+```sh
+tern plugin install github.com/thegeneralist01/tern-projects --force
+```
+
+`--force` replaces an installed copy, not a linked development checkout.
+
+### Build from source / development
+
+Other architectures and operating systems require Rust/cargo and a local build; their native Tern integration remains unverified. Building replaces the bundled binary with one for the build machine. Do not commit a different platform's binary over the distributed Apple Silicon binary.
+
+```sh
+git clone https://github.com/thegeneralist01/tern-projects.git
+cd tern-projects
 ./scripts/build.sh
 tern plugin types .     # optional: regenerate local Luau API stubs
 tern plugin link .
 tern plugin list --json
 ```
 
-The build installs `bin/tern-projects` and the `~/.cargo/bin/tern-projects` fallback. The plugin uses the bundled binary first. No legacy binary or route aliases are registered.
+The build installs `bin/tern-projects` and a Cargo-bin fallback (`~/.cargo/bin/tern-projects` by default). The plugin uses the bundled binary first. macOS builds normalize Nix libiconv linkage to the system library, reject non-system runtime dependencies, and refresh the ad-hoc signature. No legacy binary or route aliases are registered.
 
 Native application verification is on **macOS**. Field-editing scenarios exercise macOS, Windows, and Linux runtime modifier values; that is not a claim of native Windows/Linux application testing. Launch planning includes Windows PowerShell argument encoding, but native Windows/Linux delivery remains unverified.
 
