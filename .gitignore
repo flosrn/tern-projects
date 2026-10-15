@@ -1,0 +1,4 @@
+bin/
+indexer/target/
+tern.d.luau
+.DS_Store

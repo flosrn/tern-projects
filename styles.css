@@ -1,0 +1,22 @@
+/* Keep controls visible; only the history list consumes remaining height. */
+.sf-main[data-surface="plugin.tern-projects.panel"] {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-height: 0;
+	overflow: hidden;
+}
+.sf-main[data-surface="plugin.tern-projects.panel"] > * { flex-shrink: 0; }
+.sf-main[data-surface="plugin.tern-projects.panel"] > [data-role="tern-projects.rows"] {
+	flex: 1 1 0;
+	min-height: 0;
+	overflow: hidden;
+}
+.sf-main[data-surface="plugin.tern-projects.panel"] [data-role="tern-projects.rows"] > .sf-list-scroll {
+	height: 100%;
+	max-height: none !important;
+}
+.sf-main[data-surface="plugin.tern-projects.panel"] [data-role="tern-projects.project-chat"] { padding-left: calc(2 * var(--sf-cw) + 6px); }
+/* Harness tones identify the icon only; titles and transcript snippets stay neutral. */
+[data-surface="plugin.tern-projects.panel"] .sf-item[data-tone] { color: var(--t1); }
+[data-surface="plugin.tern-projects.panel"] .sf-item[data-tone] .sf-item-label { color: var(--t1); }

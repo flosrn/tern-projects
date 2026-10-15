@@ -1,0 +1,200 @@
+use anyhow::Context;
+use rusqlite::{Connection, OpenFlags, params};
+use std::path::Path;
+
+pub const SCHEMA_VERSION: i64 = 1;
+
+/// Open (or create) the index DB, running migrations as needed.
+pub fn open(path: &Path) -> anyhow::Result<Connection> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("creating db parent dir {}", parent.display()))?;
+    }
+    let conn = Connection::open(path)
+        .with_context(|| format!("opening db at {}", path.display()))?;
+
+    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")?;
+
+    let user_version: i64 = conn
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .unwrap_or(0);
+
+    if user_version != SCHEMA_VERSION {
+        migrate(&conn)?;
+    }
+
+    Ok(conn)
+}
+
+/// Open read-only for a helper DB (e.g. agent stores).
+pub fn open_readonly(path: &Path) -> anyhow::Result<Connection> {
+    Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .with_context(|| format!("opening read-only db at {}", path.display()))
+}
+
+fn migrate(conn: &Connection) -> anyhow::Result<()> {
+    conn.execute_batch("
+        DROP TABLE IF EXISTS sessions_fts;
+        DROP TABLE IF EXISTS sessions;
+        DROP TABLE IF EXISTS sources;
+        CREATE TABLE sources(source TEXT PRIMARY KEY, agent TEXT NOT NULL, version TEXT NOT NULL);
+        CREATE TABLE sessions(
+            rowid INTEGER PRIMARY KEY,
+            uid TEXT NOT NULL UNIQUE,
+            agent TEXT NOT NULL,
+            id TEXT NOT NULL,
+            source TEXT NOT NULL,
+            title TEXT NOT NULL,
+            cwd TEXT NOT NULL,
+            project_root TEXT NOT NULL,
+            worktree_root TEXT NOT NULL,
+            branch TEXT,
+            model TEXT,
+            created_ms INTEGER NOT NULL,
+            updated_ms INTEGER NOT NULL,
+            messages INTEGER NOT NULL,
+            last_assistant TEXT NOT NULL,
+            resume TEXT NOT NULL
+        );
+        CREATE INDEX sessions_updated ON sessions(updated_ms DESC);
+        CREATE INDEX sessions_project ON sessions(project_root, updated_ms DESC);
+        CREATE INDEX sessions_source ON sessions(source);
+        CREATE VIRTUAL TABLE sessions_fts USING fts5(
+            title, body,
+            tokenize='unicode61 remove_diacritics 2'
+        );
+        PRAGMA user_version=1;
+    ")?;
+    Ok(())
+}
+
+/// Check whether `uid` already exists in sessions.
+pub fn get_source_version(conn: &Connection, source: &str) -> Option<String> {
+    conn.query_row(
+        "SELECT version FROM sources WHERE source = ?1",
+        params![source],
+        |r| r.get(0),
+    )
+    .ok()
+}
+
+pub struct UpsertData<'a> {
+    pub uid: &'a str,
+    pub agent: &'a str,
+    pub id: &'a str,
+    pub source: &'a str,
+    pub title: &'a str,
+    pub cwd: &'a str,
+    pub project_root: &'a str,
+    pub worktree_root: &'a str,
+    pub branch: Option<&'a str>,
+    pub model: Option<&'a str>,
+    pub created_ms: i64,
+    pub updated_ms: i64,
+    pub messages: i64,
+    pub last_assistant: &'a str,
+    pub resume_json: &'a str,
+    pub body: &'a str,
+    pub source_version: &'a str,
+}
+
+pub fn upsert_session(conn: &Connection, d: &UpsertData<'_>) -> anyhow::Result<()> {
+    // Delete old FTS row if the session already exists.
+    let old_rowid: Option<i64> = conn
+        .query_row(
+            "SELECT rowid FROM sessions WHERE uid = ?1",
+            params![d.uid],
+            |r| r.get(0),
+        )
+        .ok();
+    if let Some(rowid) = old_rowid {
+        conn.execute("DELETE FROM sessions_fts WHERE rowid = ?1", params![rowid])?;
+    }
+
+    conn.execute(
+        "INSERT INTO sessions(uid,agent,id,source,title,cwd,project_root,worktree_root,branch,model,
+            created_ms,updated_ms,messages,last_assistant,resume)
+         VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)
+         ON CONFLICT(uid) DO UPDATE SET
+            agent=excluded.agent, id=excluded.id, source=excluded.source,
+            title=excluded.title, cwd=excluded.cwd, project_root=excluded.project_root,
+            worktree_root=excluded.worktree_root, branch=excluded.branch, model=excluded.model,
+            created_ms=excluded.created_ms, updated_ms=excluded.updated_ms,
+            messages=excluded.messages, last_assistant=excluded.last_assistant,
+            resume=excluded.resume",
+        params![
+            d.uid, d.agent, d.id, d.source, d.title, d.cwd,
+            d.project_root, d.worktree_root, d.branch, d.model,
+            d.created_ms, d.updated_ms, d.messages, d.last_assistant, d.resume_json
+        ],
+    )?;
+
+    let new_rowid: i64 = conn.query_row(
+        "SELECT rowid FROM sessions WHERE uid = ?1",
+        params![d.uid],
+        |r| r.get(0),
+    )?;
+
+    conn.execute(
+        "INSERT INTO sessions_fts(rowid, title, body) VALUES(?1, ?2, ?3)",
+        params![new_rowid, d.title, d.body],
+    )?;
+
+    conn.execute(
+        "INSERT INTO sources(source, agent, version) VALUES(?1,?2,?3)
+         ON CONFLICT(source) DO UPDATE SET agent=excluded.agent, version=excluded.version",
+        params![d.source, d.agent, d.source_version],
+    )?;
+
+    Ok(())
+}
+
+/// Delete a session by source (used when parse returns None or source is gone).
+pub fn delete_by_source(conn: &Connection, source: &str) -> anyhow::Result<()> {
+    let rowid: Option<i64> = conn
+        .query_row(
+            "SELECT rowid FROM sessions WHERE source = ?1",
+            params![source],
+            |r| r.get(0),
+        )
+        .ok();
+    if let Some(rowid) = rowid {
+        conn.execute("DELETE FROM sessions_fts WHERE rowid = ?1", params![rowid])?;
+        conn.execute("DELETE FROM sessions WHERE rowid = ?1", params![rowid])?;
+    }
+    Ok(())
+}
+
+/// Upsert a source record without a session (parse returned None).
+pub fn upsert_source_only(conn: &Connection, source: &str, agent: &str, version: &str) -> anyhow::Result<()> {
+    conn.execute(
+        "INSERT INTO sources(source, agent, version) VALUES(?1,?2,?3)
+         ON CONFLICT(source) DO UPDATE SET agent=excluded.agent, version=excluded.version",
+        params![source, agent, version],
+    )?;
+    Ok(())
+}
+
+/// Remove all sources (and their sessions) for `agent` whose source is not in `live`.
+pub fn remove_stale(conn: &Connection, agent: &str, live: &[String]) -> anyhow::Result<usize> {
+    // Get all sources for this agent.
+    let mut stmt = conn.prepare("SELECT source FROM sources WHERE agent = ?1")?;
+    let all_sources: Vec<String> = stmt
+        .query_map(params![agent], |r| r.get(0))?
+        .flatten()
+        .collect();
+
+    let live_set: std::collections::HashSet<&str> = live.iter().map(String::as_str).collect();
+    let mut removed = 0usize;
+    for src in &all_sources {
+        if !live_set.contains(src.as_str()) {
+            delete_by_source(conn, src)?;
+            conn.execute("DELETE FROM sources WHERE source = ?1", params![src])?;
+            removed += 1;
+        }
+    }
+    Ok(removed)
+}

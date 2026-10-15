@@ -1,0 +1,5 @@
+{"type":"user","message":{"content":"Build a Rust FTS indexer for agent chats"},"cwd":"/home/user/repos/myproject","gitBranch":"feat/fts","timestamp":"2024-06-01T10:00:00.000Z"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"I'll help you build that. Let me start with the schema design."}],"model":"claude-opus-4-5"},"timestamp":"2024-06-01T10:01:00.000Z"}
+{"type":"user","message":{"content":"Use FTS5 with unicode61 tokenizer"},"timestamp":"2024-06-01T10:02:00.000Z"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Great choice. FTS5 unicode61 handles international text well."}],"model":"claude-opus-4-5"},"timestamp":"2024-06-01T10:03:00.000Z"}
+{"type":"ai-title","message":{"aiTitle":"Build Rust FTS5 indexer"},"timestamp":"2024-06-01T10:04:00.000Z"}

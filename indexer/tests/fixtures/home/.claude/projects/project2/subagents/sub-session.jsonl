@@ -1,0 +1,2 @@
+{"type":"user","message":{"content":"subagent task"},"cwd":"/home/user","timestamp":"2024-06-01T11:00:00.000Z"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"subagent response"}],"model":"claude-opus-4-5"},"timestamp":"2024-06-01T11:01:00.000Z"}

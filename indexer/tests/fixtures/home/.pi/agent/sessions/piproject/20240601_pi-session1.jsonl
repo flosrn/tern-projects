@@ -1,0 +1,5 @@
+{"type":"session","id":"pi-session1","cwd":"/home/user/repos/piproject","timestamp":1717236000000}
+{"type":"session_info","name":"Pi planning session","timestamp":1717236001000}
+{"type":"model_change","modelId":"gpt-4","timestamp":1717236002000}
+{"type":"message","id":"msg1","timestamp":1717236003000,"message":{"role":"user","content":"Explain the pi number to me"}}
+{"type":"message","id":"msg2","timestamp":1717236004000,"message":{"role":"assistant","content":"Pi is the ratio of a circle's circumference to its diameter, approximately 3.14159."}}

@@ -1,0 +1,5 @@
+{"type":"session","id":"session-omp1","cwd":"/home/user/repos/myproject","timestamp":1717236000000}
+{"type":"title_change","title":"OMP indexer session","timestamp":1717236001000}
+{"type":"model_change","model":"gpt-4o","timestamp":1717236002000}
+{"type":"message","id":"msg1","timestamp":1717236003000,"message":{"role":"user","content":[{"type":"text","text":"Write a Python script to index files"}]}}
+{"type":"message","id":"msg2","timestamp":1717236004000,"message":{"role":"assistant","content":[{"type":"text","text":"Here is the Python indexer script with FTS5 support."}]}}

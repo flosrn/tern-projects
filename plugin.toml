@@ -1,0 +1,14 @@
+schema = 1
+id = "tern-projects"
+name = "Projects"
+version = "0.2.0"
+description = "Curated multi-folder projects, pinned chats and history search across Codex, Claude Code, OMP, Pi, OpenCode and Cursor."
+icon = "folder"
+host = "host.luau"
+window = "window.luau"
+styles = ["styles.css"]
+
+[[blocks]]
+id = "panel"
+title = "Projects"
+icon = "folder"
