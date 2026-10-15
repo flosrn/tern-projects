@@ -434,7 +434,7 @@ local panel: BlockDef<any> = {
 	title = function(s) return s.mode == "projects" and "Projects" or (s.mode == "search" and "Projects · Search" or "Projects · Settings") end,
 	view = function(s, _cx)
 		local children: {any} = {ui.row({chip("Projects", "mode=projects", s.mode == "projects"), chip("Search", "mode=search", s.mode == "search"), chip("Settings", "mode=settings", s.mode == "settings")})}
-		local status = s.indexing and "Indexing…" or (s.loading and "Loading…" or "")
+		local status = cli.status() or (s.indexing and "Indexing…" or (s.loading and "Loading…" or ""))
 		if s.mode ~= "projects" then
 			table.insert(children, ui.row({ui.text({ui.span(status, "muted")}), chip("Refresh", "refresh")}))
 		elseif status ~= "" then

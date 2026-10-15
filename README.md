@@ -12,14 +12,16 @@ A [Tern](https://stencil.so/tern) sidebar for curated projects and agent chat hi
 ## Requirements and installation
 
 - Current desktop Tern with plugin blocks, native overlays, and context menus.
-- **Apple Silicon Mac (macOS 11 or later)** for the bundled binary. No Rust installation is needed.
+- Rust/Cargo (current stable recommended) and a native build toolchain (on macOS, Xcode Command Line Tools: `xcode-select --install`).
 - At least one supported harness CLI for starting chats; existing history can still be indexed without its CLI.
 
 ```sh
 tern plugin install github.com/thegeneralist01/tern-projects
 ```
 
-The repository includes the Apple Silicon macOS binary at `bin/tern-projects`; Tern installs it with the plugin. No separate download or build step is required. Open **Projects** from Tern's command palette after installation.
+Tern installs the source package. When the plugin loads, it automatically runs `cargo build --release --locked` in the background. No manual build command is needed. The first build downloads dependencies and may take several minutes; opening Projects shows **Building Rust backend…** while requests wait. Open **Projects** from Tern's command palette after installation.
+
+Build output is cached under `tern.plugin.data/backend`, outside the watched package directory. Later loads reuse the executable; changes to Rust sources, `Cargo.toml`, or `Cargo.lock` trigger a rebuild after an update. A failed build is shown as an error; install the missing tools or fix the reported build problem, then **Refresh** to retry. Cargo is discovered in `CARGO_HOME/bin`, `~/.cargo/bin`, or Tern's inherited `PATH`.
 
 To update the installed copy:
 
@@ -31,7 +33,7 @@ tern plugin install github.com/thegeneralist01/tern-projects --force
 
 ### Build from source / development
 
-Other architectures and operating systems require Rust/cargo and a local build; their native Tern integration remains unverified. Building replaces the bundled binary with one for the build machine. Do not commit a different platform's binary over the distributed Apple Silicon binary.
+The same automatic build runs for linked development checkouts. Rust source changes trigger a rebuild on plugin reload. To build and exercise the CLI manually:
 
 ```sh
 git clone https://github.com/thegeneralist01/tern-projects.git
@@ -42,7 +44,7 @@ tern plugin link .
 tern plugin list --json
 ```
 
-The build installs `bin/tern-projects` and a Cargo-bin fallback (`~/.cargo/bin/tern-projects` by default). The plugin uses the bundled binary first. macOS builds normalize Nix libiconv linkage to the system library, reject non-system runtime dependencies, and refresh the ad-hoc signature. No legacy binary or route aliases are registered.
+The optional build script installs a CLI at `bin/tern-projects` and a Cargo-bin fallback (`~/.cargo/bin/tern-projects` by default). The plugin does not use these paths: it builds and runs its own backend in plugin data. No compiled executable is committed or downloaded.
 
 Native application verification is on **macOS**. Field-editing scenarios exercise macOS, Windows, and Linux runtime modifier values; that is not a claim of native Windows/Linux application testing. Launch planning includes Windows PowerShell argument encoding, but native Windows/Linux delivery remains unverified.
 

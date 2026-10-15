@@ -1,5 +1,4 @@
-bin/*
-!bin/tern-projects
+bin/
 indexer/target/
 tern.d.luau
 .DS_Store

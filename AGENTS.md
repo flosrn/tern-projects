@@ -45,7 +45,7 @@ tern plugin list            # verify: both plugins show "ready"
 
 ## Key invariants
 
-- **Binary path**: `cli.bin()` tries `<plugin.dir>/bin/tern-projects` first, then `~/.cargo/bin/tern-projects`. Both are populated by `scripts/build.sh`.
+- **Binary path**: `lib/backend.luau` automatically builds with Cargo at host startup and queues CLI requests until ready. The executable and exact-source cache stamp live in `<plugin.data>/backend/`; Rust source/manifest/lock changes invalidate the cache on reload. No bundled or global binary fallback.
 - **Data path**: `<plugin.data>/index.sqlite` and sibling durable `library.sqlite` — under `~/Library/Application Support/Tern/plugin-data/tern-projects` on macOS.
 - **Indexer schema version** = 1 (in `db.rs`). Bump it when the schema changes; this forces a full reindex.
 - **Library schema version** = 1, independent of the disposable index. Never drop durable project/chat/settings data during a cache rebuild.
