@@ -41,16 +41,15 @@ fn success(output: Output) -> Value {
 }
 
 #[test]
-fn concurrent_first_snapshot_query_and_save_preserve_library() {
-    // Each round starts with a fresh library, but an initialized disposable cache:
-    // the race under test is library creation, not index schema migration.
+fn concurrent_first_index_snapshot_query_and_save_preserve_library() {
+    // Both databases are absent: every CLI path must tolerate another opener's
+    // index/library migration without dropping newly committed data.
     for _ in 0..4 {
         let temp = tempfile::tempdir().unwrap();
         let home = temp.path().join("home");
         let folder = home.join("project");
         std::fs::create_dir_all(&folder).unwrap();
         let db = temp.path().join("index.sqlite");
-        success(command(&db, &home).arg("index").output().unwrap());
         assert!(!temp.path().join("library.sqlite").exists());
 
         let barrier = Arc::new(Barrier::new(9));
@@ -66,7 +65,8 @@ fn concurrent_first_snapshot_query_and_save_preserve_library() {
                         "op":"project-save", "name":"Saved during first open", "icon":"rocket",
                         "folders":[folder], "cwd":home,
                     })),
-                    1..=4 => library(&db, &home, &json!({
+                    1 => command(&db, &home).arg("index").output().unwrap(),
+                    2..=4 => library(&db, &home, &json!({
                         "op":"snapshot", "view":"mine", "per":5, "recent":15,
                     })),
                     _ => command(&db, &home).args(["query", "--scope", "all"]).output().unwrap(),

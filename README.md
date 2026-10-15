@@ -165,6 +165,12 @@ tern plugin list --json
 
 Tests use isolated homes and the real CLI. Native source-deletion smoke uses synthetic sessions in authentic temporary Codex/OpenCode stores; no real conversations are deletion fixtures.
 
+### 0.2.2 — concurrent first-run initialization
+
+Index schema migration now runs in one SQLite write transaction and rechecks the schema version after obtaining the lock. Concurrent Index, Search, and Library requests no longer race to create `sessions_fts` or discard another request's newly indexed cache. Failed migrations roll back instead of leaving a partial schema.
+
+If an earlier installation reported `table sessions_fts already exists`, update with `tern plugin install github.com/thegeneralist01/tern-projects --force`, then reopen Projects or Refresh. The backend rebuilds automatically; no database deletion is required. Project metadata and original harness histories are untouched.
+
 ## License
 
 MIT

@@ -1,5 +1,5 @@
 use anyhow::Context;
-use rusqlite::{Connection, OpenFlags, params};
+use rusqlite::{Connection, OpenFlags, TransactionBehavior, params};
 use std::path::Path;
 
 pub const SCHEMA_VERSION: i64 = 1;
@@ -10,17 +10,16 @@ pub fn open(path: &Path) -> anyhow::Result<Connection> {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("creating db parent dir {}", parent.display()))?;
     }
-    let conn = Connection::open(path)
+    let mut conn = Connection::open(path)
         .with_context(|| format!("opening db at {}", path.display()))?;
 
-    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")?;
+    conn.busy_timeout(std::time::Duration::from_millis(5000))?;
+    conn.execute_batch("PRAGMA journal_mode=WAL;")?;
 
-    let user_version: i64 = conn
-        .query_row("PRAGMA user_version", [], |r| r.get(0))
-        .unwrap_or(0);
+    let user_version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
 
     if user_version != SCHEMA_VERSION {
-        migrate(&conn)?;
+        migrate(&mut conn)?;
     }
 
     Ok(conn)
@@ -35,8 +34,15 @@ pub fn open_readonly(path: &Path) -> anyhow::Result<Connection> {
     .with_context(|| format!("opening read-only db at {}", path.display()))
 }
 
-fn migrate(conn: &Connection) -> anyhow::Result<()> {
-    conn.execute_batch("
+fn migrate(conn: &mut Connection) -> anyhow::Result<()> {
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    // An opener may have migrated while we waited. Never recreate its live cache.
+    let version: i64 = tx.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    if version == SCHEMA_VERSION {
+        tx.commit()?;
+        return Ok(());
+    }
+    tx.execute_batch("
         DROP TABLE IF EXISTS sessions_fts;
         DROP TABLE IF EXISTS sessions;
         DROP TABLE IF EXISTS sources;
@@ -68,6 +74,7 @@ fn migrate(conn: &Connection) -> anyhow::Result<()> {
         );
         PRAGMA user_version=1;
     ")?;
+    tx.commit()?;
     Ok(())
 }
 
@@ -197,4 +204,52 @@ pub fn remove_stale(conn: &Connection, agent: &str, live: &[String]) -> anyhow::
         }
     }
     Ok(removed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stale_migration_preserves_cache_committed_by_another_opener() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("index.sqlite");
+        let mut waiting = Connection::open(&path).unwrap();
+        let initial_version: i64 = waiting.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(initial_version, 0);
+
+        // The first opener finishes initialization and indexes a chat before the
+        // stale opener enters migrate(). Its source and search rows must survive.
+        let first = open(&path).unwrap();
+        upsert_source_only(&first, "chat.jsonl", "omp", "v1").unwrap();
+        first.execute("INSERT INTO sessions_fts(title, body) VALUES('First chat', 'migration sentinel')", []).unwrap();
+        migrate(&mut waiting).unwrap();
+
+        assert_eq!(get_source_version(&waiting, "chat.jsonl").as_deref(), Some("v1"));
+        let title: String = waiting.query_row(
+            "SELECT title FROM sessions_fts WHERE sessions_fts MATCH 'sentinel'",
+            [], |r| r.get(0),
+        ).unwrap();
+        assert_eq!(title, "First chat");
+    }
+
+    #[test]
+    fn failed_migration_rolls_back_partial_schema_changes() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("
+            CREATE VIRTUAL TABLE sessions_fts USING fts5(title, body);
+            INSERT INTO sessions_fts VALUES('Existing chat', 'rollback sentinel');
+            CREATE VIEW sources AS SELECT 1;
+        ").unwrap();
+
+        // DROP TABLE sources cannot drop a view. Earlier DDL must roll back too.
+        assert!(migrate(&mut conn).is_err());
+        let title: String = conn.query_row(
+            "SELECT title FROM sessions_fts WHERE sessions_fts MATCH 'sentinel'",
+            [], |r| r.get(0),
+        ).unwrap();
+        assert_eq!(title, "Existing chat");
+        let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(version, 0);
+    }
 }
