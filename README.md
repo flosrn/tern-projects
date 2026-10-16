@@ -9,6 +9,14 @@ A [Tern](https://stencil.so/tern) sidebar for curated projects and agent chat hi
 - **Search**: full-text search with Workspace / Repository / All scopes, a separate named-project filter, relevance or updated-time ordering, and 50-result pages.
 - **Settings**: default harness, Color / Monochrome harness icons, and Archived chats.
 
+![tern-projects sidebar overview](docs/screenshots/showcase-overview.png)
+
+*Projects (light/dark), Search scopes, Settings, and keyboard reference.*
+
+![tern-projects details, menus, and search results](docs/screenshots/showcase-details.png)
+
+*Project chat lists, inspector dock with branch metadata, actions menu, and query results.*
+
 ## Requirements and installation
 
 - Current desktop Tern with plugin blocks, native overlays, and context menus.
