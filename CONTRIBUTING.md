@@ -8,6 +8,27 @@ Thank you for your interest in contributing to `tern-projects`!
 
 ---
 
+## Contributing with AI Coding Agents
+
+Whether you are writing code by hand or pairing with an AI coding assistant (like Claude Code, Cursor, OMP, Codex, Pi, or OpenCode), contributions are welcome!
+
+### The Role of `AGENTS.md`
+If you or your AI assistant are modifying the project, **[AGENTS.md](AGENTS.md)** is the authoritative guide for this repository. It documents:
+- The complete repository layout and module responsibilities.
+- The host/window process architecture.
+- Core invariants (such as storage isolation between `library.sqlite` and `index.sqlite`, and fail-closed deletion safety).
+- Build, test, and verification commands.
+- Coding conventions for Luau, Rust, and Jujutsu (`.jj`).
+
+### When to Update `AGENTS.md`
+To keep this repository easy to maintain for both human developers and future AI agent runs, please update `AGENTS.md` whenever your PR:
+- **Adds, moves, or removes files**: Keep the `Repo layout` tree in `AGENTS.md` accurate.
+- **Changes core invariants**: Such as modifying storage schemas, background build behavior, or safety requirements for chat deletion.
+- **Updates commands or tools**: Changes to test suites, build scripts, or plugin lifecycle hooks.
+- **Establishes new conventions**: New patterns across Luau UI components or Rust modules.
+
+---
+
 ## Local Development Workflow
 
 ### Prerequisites
@@ -35,45 +56,13 @@ Whenever you modify Rust code in `indexer/`, run `./scripts/build.sh` (or `cargo
 
 ---
 
-## Adding Support for a New AI Coding Agent
+## Adding Support for a New AI Assistant
 
-We welcome adapters for new AI coding assistants! Adding an agent requires implementing discovery, indexing, and launching:
+Interested in adding support for another AI coding assistant (e.g. Goose, Aider, Devin)?
 
-### 1. Create the Rust Adapter
-Create `indexer/src/adapters/<agent>.rs` implementing the `Adapter` trait:
-- `candidates(&self, home: &Path) -> Result<Vec<Candidate>>`: Find session files, SQLite databases, or transcript stores on disk.
-- `parse(&self, candidate: &Candidate) -> Result<Parsed>`: Extract conversation title, working directory (`cwd`), timestamp, message count, model name, and resume invocation.
+We have a dedicated, step-by-step technical guide covering adapter discovery, launch planning, safe deletion, and UI icons:
 
-Register the new module in:
-- `indexer/src/adapters/mod.rs`
-- `all_adapters()` in `indexer/src/main.rs`
-
-### 2. Configure Launch & Resume
-In `indexer/src/harnesses.rs`:
-- Add executable candidate names and search paths in `find_executable`.
-- Implement `plan_launch`: configure argv, working directory, and `--add-dir` multi-directory flags if the tool supports them.
-- If the tool only supports a single working directory, flag omitted folders so the UI can prompt the user safely.
-
-### 3. Add Safe Deletion (Optional)
-If the tool provides a verified per-chat deletion command or unlinked transcript file:
-- Add a handler in `indexer/src/delete.rs`.
-- Deletion must always verify target identity, check for running processes before mutating disk state, and never touch unrelated files or worktrees.
-
-### 4. UI Icons and Formatting
-In `lib/fmt.luau`:
-- Add display label in `fmt.agent_label(agent)`.
-- Add Tern icon name in `fmt.agent_icon(agent)`.
-- Add color tone in `fmt.agent_tone(agent, style)` (e.g., `accent`, `warning`, `success`, `info`, `user`).
-
-### 5. Integration Tests
-Add synthetic, sanitized test fixtures under:
-- `indexer/tests/fixtures/home/<agent>/...`
-- Add assertions in `indexer/tests/index.rs` verifying that candidate parsing, indexing, and search snippets work end-to-end.
-
-Run the test suite:
-```sh
-cargo test --manifest-path indexer/Cargo.toml
-```
+👉 **[docs/adding-a-harness.md](docs/adding-a-harness.md)**
 
 ---
 
@@ -91,4 +80,5 @@ cargo test --manifest-path indexer/Cargo.toml
 1. Fork the repository and create your branch from `main`.
 2. Ensure all tests pass (`cargo test --manifest-path indexer/Cargo.toml`).
 3. Commit with a clear, conventional commit message (e.g. `feat: add goose agent adapter`).
-4. Open a Pull Request on GitHub describing your changes and testing evidence.
+4. If you made structural or architectural changes, verify `AGENTS.md` is updated.
+5. Open a Pull Request on GitHub describing your changes and testing evidence.

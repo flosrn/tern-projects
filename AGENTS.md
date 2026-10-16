@@ -10,6 +10,9 @@ styles.css           Theme & layout styling for panel surfaces
 CHANGELOG.md         Release history and notable changes
 CONTRIBUTING.md      Development workflows and PR guidelines
 LICENSE              Repository license
+docs/                Documentation and technical guides
+  adding-a-harness.md Step-by-step guide for implementing new assistant adapters
+  screenshots/       Showcase images for README and documentation
 host.luau            Host process half: registers the panel block
 window.luau          Window process half: keybind migration, toggles, launch/resume routes
 blocks/panel.luau    Main UI: Projects (My Projects / Discovered), Search, Settings
@@ -54,6 +57,14 @@ tern.d.luau          Generated Tern type stubs (gitignored)
    - A native Rust binary (`indexer/`) invoked via stdin/stdout JSON requests.
    - Handles background filesystem indexing, full-text search (SQLite FTS5), metadata queries, harness detection, and atomic source chat deletions.
 
+
+## Maintaining AGENTS.md
+
+This file is the living architectural map for AI agents and human contributors working on `tern-projects`. Always keep it up to date:
+- **Structural updates**: Whenever files are added, moved, or deleted, update the `Repo layout` above.
+- **Architectural shifts**: If database schemas, storage separation, IPC routes, or deletion contracts change, document the new invariants here.
+- **Tooling & workflow**: If build commands, test harnesses, or plugin lifecycle hooks change, update the commands section.
+Keeping this file accurate prevents regressions and context drift across autonomous agent sessions.
 ## VCS Conventions
 
 This repository uses Jujutsu (`.jj`) as its primary version-control interface.
@@ -102,9 +113,4 @@ tern plugin reload                               # Reload plugin in running Tern
 
 ## Adding a New Harness / Adapter
 
-1. Implement the `Adapter` trait in `indexer/src/adapters/<harness>.rs`.
-2. Register the adapter in `indexer/src/adapters/mod.rs` and `indexer/src/main.rs`.
-3. Add CLI detection, capabilities, and launch plans in `indexer/src/harnesses.rs`.
-4. Add fail-closed deletion verification in `indexer/src/delete.rs` / `indexer/src/delete_*.rs`.
-5. Update UI labels and icons in `lib/fmt.luau`.
-6. Add integration test fixtures and assertions under `indexer/tests/`.
+See the complete technical guide in **[docs/adding-a-harness.md](docs/adding-a-harness.md)** for detailed implementation patterns, error handling, and test requirements.
