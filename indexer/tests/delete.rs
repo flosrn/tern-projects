@@ -442,6 +442,7 @@ fn claude_deletes_exact_session_history_without_touching_neighbors() {
 #[cfg(unix)]
 #[test]
 fn active_process_with_matching_store_refuses_direct_deletion() {
+    use std::os::unix::process::CommandExt;
     struct Process(std::process::Child);
     impl Drop for Process {
         fn drop(&mut self) {
@@ -455,12 +456,12 @@ fn active_process_with_matching_store_refuses_direct_deletion() {
     let source = seed(&home, "pi", "target");
     let bytes = std::fs::read(&source).unwrap();
     index(&db, &home);
-    // An actual idle process with a harness executable identity and explicit store environment.
-    // This tests the process ownership gate, not native CLI deletion behavior.
-    let executable = temp.path().join("pi");
-    std::fs::copy("/bin/sleep", &executable).unwrap();
-    let _process = Process(
-        Command::new(executable)
+    // Preserve the system executable's signature on macOS. Copying /bin/sleep to a
+    // different name can be killed by code-signing enforcement between the two checks.
+    // The harness identity is in argv[0], as it is for a script-based CLI.
+    let mut process = Process(
+        Command::new("/bin/sleep")
+            .arg0(temp.path().join("pi"))
             .arg("30")
             .env("HOME", &home)
             .env("PI_CODING_AGENT_DIR", home.join(".pi/agent"))
@@ -475,6 +476,10 @@ fn active_process_with_matching_store_refuses_direct_deletion() {
                 || reason.contains("Stop")
                 || reason.contains("stop")),
         "{p}"
+    );
+    assert!(
+        process.0.try_wait().unwrap().is_none(),
+        "fixture process exited before deletion"
     );
     assert!(!call(&db, &home, deletion(&p)).status.success());
     assert_eq!(std::fs::read(source).unwrap(), bytes);

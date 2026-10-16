@@ -1,8 +1,24 @@
 use anyhow::Context;
-use rusqlite::{Connection, OpenFlags, TransactionBehavior, params};
+use rusqlite::{params, Connection, OpenFlags, TransactionBehavior};
 use std::path::Path;
 
 pub const SCHEMA_VERSION: i64 = 1;
+
+/// Serialize first-open journal changes as well as transactional schema creation.
+/// SQLite's journal-mode transition can return BUSY without invoking its busy handler.
+pub fn initialization_lock(path: &Path) -> anyhow::Result<std::fs::File> {
+    let lock_path = path.with_extension("init.lock");
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)
+        .with_context(|| format!("opening initialization lock {}", lock_path.display()))?;
+    fs2::FileExt::lock_exclusive(&lock)
+        .with_context(|| format!("locking database initialization {}", path.display()))?;
+    Ok(lock)
+}
 
 /// Open (or create) the index DB, running migrations as needed.
 pub fn open(path: &Path) -> anyhow::Result<Connection> {
@@ -10,8 +26,9 @@ pub fn open(path: &Path) -> anyhow::Result<Connection> {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("creating db parent dir {}", parent.display()))?;
     }
-    let mut conn = Connection::open(path)
-        .with_context(|| format!("opening db at {}", path.display()))?;
+    let _initialization = initialization_lock(path)?;
+    let mut conn =
+        Connection::open(path).with_context(|| format!("opening db at {}", path.display()))?;
 
     conn.busy_timeout(std::time::Duration::from_millis(5000))?;
     conn.execute_batch("PRAGMA journal_mode=WAL;")?;
@@ -42,7 +59,8 @@ fn migrate(conn: &mut Connection) -> anyhow::Result<()> {
         tx.commit()?;
         return Ok(());
     }
-    tx.execute_batch("
+    tx.execute_batch(
+        "
         DROP TABLE IF EXISTS sessions_fts;
         DROP TABLE IF EXISTS sessions;
         DROP TABLE IF EXISTS sources;
@@ -73,7 +91,8 @@ fn migrate(conn: &mut Connection) -> anyhow::Result<()> {
             tokenize='unicode61 remove_diacritics 2'
         );
         PRAGMA user_version=1;
-    ")?;
+    ",
+    )?;
     tx.commit()?;
     Ok(())
 }
@@ -176,7 +195,12 @@ pub fn delete_by_source(conn: &Connection, source: &str) -> anyhow::Result<()> {
 }
 
 /// Upsert a source record without a session (parse returned None).
-pub fn upsert_source_only(conn: &Connection, source: &str, agent: &str, version: &str) -> anyhow::Result<()> {
+pub fn upsert_source_only(
+    conn: &Connection,
+    source: &str,
+    agent: &str,
+    version: &str,
+) -> anyhow::Result<()> {
     conn.execute(
         "INSERT INTO sources(source, agent, version) VALUES(?1,?2,?3)
          ON CONFLICT(source) DO UPDATE SET agent=excluded.agent, version=excluded.version",
@@ -215,41 +239,62 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("index.sqlite");
         let mut waiting = Connection::open(&path).unwrap();
-        let initial_version: i64 = waiting.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        let initial_version: i64 = waiting
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(initial_version, 0);
 
         // The first opener finishes initialization and indexes a chat before the
         // stale opener enters migrate(). Its source and search rows must survive.
         let first = open(&path).unwrap();
         upsert_source_only(&first, "chat.jsonl", "omp", "v1").unwrap();
-        first.execute("INSERT INTO sessions_fts(title, body) VALUES('First chat', 'migration sentinel')", []).unwrap();
+        first
+            .execute(
+                "INSERT INTO sessions_fts(title, body) VALUES('First chat', 'migration sentinel')",
+                [],
+            )
+            .unwrap();
         migrate(&mut waiting).unwrap();
 
-        assert_eq!(get_source_version(&waiting, "chat.jsonl").as_deref(), Some("v1"));
-        let title: String = waiting.query_row(
-            "SELECT title FROM sessions_fts WHERE sessions_fts MATCH 'sentinel'",
-            [], |r| r.get(0),
-        ).unwrap();
+        assert_eq!(
+            get_source_version(&waiting, "chat.jsonl").as_deref(),
+            Some("v1")
+        );
+        let title: String = waiting
+            .query_row(
+                "SELECT title FROM sessions_fts WHERE sessions_fts MATCH 'sentinel'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(title, "First chat");
     }
 
     #[test]
     fn failed_migration_rolls_back_partial_schema_changes() {
         let mut conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch("
+        conn.execute_batch(
+            "
             CREATE VIRTUAL TABLE sessions_fts USING fts5(title, body);
             INSERT INTO sessions_fts VALUES('Existing chat', 'rollback sentinel');
             CREATE VIEW sources AS SELECT 1;
-        ").unwrap();
+        ",
+        )
+        .unwrap();
 
         // DROP TABLE sources cannot drop a view. Earlier DDL must roll back too.
         assert!(migrate(&mut conn).is_err());
-        let title: String = conn.query_row(
-            "SELECT title FROM sessions_fts WHERE sessions_fts MATCH 'sentinel'",
-            [], |r| r.get(0),
-        ).unwrap();
+        let title: String = conn
+            .query_row(
+                "SELECT title FROM sessions_fts WHERE sessions_fts MATCH 'sentinel'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(title, "Existing chat");
-        let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(version, 0);
     }
 }

@@ -54,7 +54,7 @@ Click **+** to create a project. Enter a name, choose an icon, and add directori
 
 Automatic membership uses each chat's original working directory and folder ancestry, not a string-prefix match or its Git repository root. A chat can automatically belong to overlapping projects. **Change project** selects an exclusive named project, **Automatic (use source folders)**, or **No project**. Organization never moves transcripts, changes working directories, or rewrites resume commands.
 
-Click a project to expand it; the first five chats are shown, **Show more chats** expands to 25, and **Older history — search** opens the appropriate project/repository filter. Recents includes chats already shown in a project or Pinned. Long lists use bounded pages so native row menus remain available.
+Click a project to expand it; the first five chats are shown. **Show more chats** expands to 25; **Show fewer** returns to the preview. The older-history action opens Search with that project's filter. Recents includes chats already shown in a project or Pinned. Long lists use bounded pages so native row menus remain available. When an action removes the selected occurrence, selection stays on a nearby row.
 
 **Refresh** sits beside **New chat** in the Projects toolbar; it refreshes the cached view and checks source histories in the background.
 
@@ -74,7 +74,7 @@ Color mode applies semantic theme tones to harness icons only; names, titles, an
 
 ## Search and keyboard controls
 
-**Workspace** means the pane's Git worktree; **Repository** includes that repository's worktrees; **All** is global. Selecting a named project starts at All scope, after which an explicit Workspace or Repository choice intersects that project. An empty intersection is not silently broadened.
+**Worktree** means the pane's Git worktree; **Repository** includes that repository's worktrees; **All** is global. The caption names the scoped directory. Selecting a named project starts at All scope, after which an explicit Worktree or Repository choice intersects that project. An empty intersection is not silently broadened. Clear a named-project filter with its adjacent **×** button. Sorting remains visible as **Newest** or **Best match**.
 
 | Shortcut | macOS | Windows/Linux |
 |---|---|---|
@@ -85,21 +85,25 @@ Settings is available in the palette without a default chord. If a preset suppre
 
 | Inside the panel | Action |
 |---|---|
-| Tab / Shift+Tab | Cycle Projects, Search, Settings; inside a modal, move between its controls |
+| Tab / Shift+Tab | Cycle My projects, Discovered, Search, Settings; inside a modal, move between its controls |
 | Up / Down | Navigate rows or modal choices |
-| Page Up / Page Down | Move selection by ten rows |
-| Left / Right in Projects | Collapse / expand the selected project |
+| Page Up / Page Down | Move selection by ten rows; cross result-page boundaries |
+| Left / Right in Projects | Collapse / expand; Left on a child selects its parent first |
 | Enter | Activate selected row/control; destructive confirmations initially select Cancel |
-| Shift+F10 | Selected row's Actions sheet |
+| Shift+F10 | Selected row's Actions sheet, or panel/Search options when nothing is selected |
 | Ctrl+R | Refresh cached view and index in the background |
 | Ctrl+Y | Copy selected chat's resume command |
-| `/` in Projects | Open Search |
-| Escape | Clear Search, or cancel/back out of a modal |
+| `/` in Projects or Settings | Open Search |
+| Escape | Clear Search or selection, cancel/back out of a modal; Hide while a mutation continues |
 | Cmd+A on macOS / Ctrl+A elsewhere | Select all in Search and project name/path fields |
 | Cmd+Backspace on macOS / Ctrl+U | Delete the field prefix before the cursor |
 | Ctrl+Backspace / Alt+Backspace | Delete the previous whitespace-delimited word |
 
 Typing and pasting replace selected text. Native edits translate UTF-16 selections to UTF-8 boundaries and reject stale or invalid offsets.
+
+Folder browsing has an explicit **Use current folder** row. Enter accepts that row or opens the highlighted child folder; the Add/Start action always names the highlighted target. Tab completes a child folder path. Missing folders and operation errors remain visible inside the active sheet without discarding its draft.
+
+**Hide** does not cancel an already-running save, move, archive, or deletion. Its progress remains visible in the panel; failures are shown with feedback rather than silently retried. Destructive confirmation still starts on Cancel.
 
 ## Archive versus permanent deletion
 
@@ -164,6 +168,16 @@ tern plugin list --json
 ```
 
 Tests use isolated homes and the real CLI. Native source-deletion smoke uses synthetic sessions in authentic temporary Codex/OpenCode stores; no real conversations are deletion fixtures.
+
+### Unreleased — sidebar and interaction polish
+
+- Clearer visual hierarchy, title-case section headings, compact narrow-pane controls, and aligned project/chat rows.
+- Opaque dialogs, consistent focus rings and primary actions, distinct path/branch details, and quieter empty states.
+- Contextual folder, harness, project, and archive pickers; explicit folder targets; a Start & set default option.
+- Keyboard-accessible project subviews and Search options, adjacent selection after organization actions, and archived-page shortcuts (Ctrl+P / Ctrl+N).
+- Operation errors stay inside their sheet. Busy operations can be hidden without suggesting they were cancelled.
+- First-open database initialization now serializes journal-mode changes as well as schema migration, avoiding SQLite lock errors during concurrent startup.
+
 
 ### 0.2.2 — concurrent first-run initialization
 

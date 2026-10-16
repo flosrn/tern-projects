@@ -108,6 +108,7 @@ impl Library {
         if let Some(parent) = p.parent() {
             std::fs::create_dir_all(parent)?;
         }
+        let _initialization = crate::db::initialization_lock(&p)?;
         let mut conn = Connection::open(&p).context("opening project library")?;
         conn.busy_timeout(std::time::Duration::from_millis(5000))?;
         conn.pragma_update(None, "foreign_keys", true)?;
