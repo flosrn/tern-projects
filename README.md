@@ -1,197 +1,122 @@
 # tern-projects
 
-A [Tern](https://stencil.so/tern) sidebar for curated projects and agent chat history across **OMP, Claude Code, Codex, Pi, OpenCode, and Cursor**.
+A curated project sidebar and unified agent history search for [Tern](https://stencil.so/tern).
 
-- **Projects → My Projects**: deliberately created, named projects with an optional icon and multiple source folders. The first folder is **Primary**, where new chats start. Nothing is imported automatically.
-- **Projects → Discovered**: the original repository/folder grouping from indexed history.
-- **Pinned**: global pinned chats, also retained in their projects and Recents.
-- **Recents**: the latest 15 chats across all projects and harnesses.
-- **Search**: full-text search with Workspace / Repository / All scopes, a separate named-project filter, relevance or updated-time ordering, and 50-result pages.
-- **Settings**: default harness, Color / Monochrome harness icons, and Archived chats.
+Bring order to your AI coding sessions across **OMP, Claude Code, Codex, Pi, OpenCode, and Cursor**.
 
 ![tern-projects sidebar overview](docs/screenshots/showcase-overview.png)
 
-*Projects (light/dark), Search scopes, Settings, and keyboard reference.*
+---
 
-![tern-projects details, menus, and search results](docs/screenshots/showcase-details.png)
+## Quickstart
 
-*Project chat lists, inspector dock with branch metadata, actions menu, and query results.*
-
-## Requirements and installation
-
-- Current desktop Tern with plugin blocks, native overlays, and context menus.
-- Rust/Cargo (current stable recommended) and a native build toolchain (on macOS, Xcode Command Line Tools: `xcode-select --install`).
-- At least one supported harness CLI for starting chats; existing history can still be indexed without its CLI.
+Run this inside Tern:
 
 ```sh
 tern plugin install github.com/thegeneralist01/tern-projects
 ```
 
-Tern installs the source package. When the plugin loads, it automatically runs `cargo build --release --locked` in the background. No manual build command is needed. The first build downloads dependencies and may take several minutes; opening Projects shows **Building Rust backend…** while requests wait. Open **Projects** from Tern's command palette after installation.
+That's it. Tern fetches the plugin, and the background engine builds automatically on first load. No manual compile steps, no extra configuration. Open **Projects** from your command palette or press `⌘⌥S`.
 
-Build output is cached under `tern.plugin.data/backend`, outside the watched package directory. Later loads reuse the executable; changes to Rust sources, `Cargo.toml`, or `Cargo.lock` trigger a rebuild after an update. A failed build is shown as an error; install the missing tools or fix the reported build problem, then **Refresh** to retry. Cargo is discovered in `CARGO_HOME/bin`, `~/.cargo/bin`, or Tern's inherited `PATH`.
-
-To update the installed copy:
-
+To update later:
 ```sh
 tern plugin install github.com/thegeneralist01/tern-projects --force
 ```
 
-`--force` replaces an installed copy, not a linked development checkout.
+---
 
-### Build from source / development
+## What it does
 
-The same automatic build runs for linked development checkouts. Rust source changes trigger a rebuild on plugin reload. To build and exercise the CLI manually:
+If you use multiple AI coding agents, your sessions are scattered across hidden SQLite databases and JSONL files. `tern-projects` unifies them into a fast, native sidebar:
+
+- 📁 **Curated "My Projects"** — Group folders into named projects (like an app, its backend, and documentation) with custom icons. Set a **Primary folder** so new chats always start in the right root.
+- 🔍 **Instant Full-Text Search** — FTS5-powered search across all your past sessions. Filter by **Worktree**, **Repository**, or **All history** with live keyword highlighting.
+- 🚀 **Fresh Chat Launching** — Press `⌘N` to launch a new chat in your preferred CLI (`omp`, `claude`, `codex`, `pi`, `opencode`, or `cursor`). Multi-folder projects pass `--add-dir` flags through automatically.
+- 📌 **Global Pins & Recents** — Keep critical threads pinned to the top of your sidebar. Recents keeps your 15 most recent chats one click away.
+- 🗄️ **Local Archiving & Safe Deletion** — Archive threads to hide them without losing data, or permanently delete sessions via verified native CLI calls.
+
+![tern-projects details, menus, and search results](docs/screenshots/showcase-details.png)
+
+---
+
+## Keyboard-First Controls
+
+Optimized for speed and one-handed navigation:
+
+| Action | macOS | Windows / Linux |
+|---|---|---|
+| **Toggle Projects sidebar** | `⌘ ⌥ S` | `Ctrl + Alt + S` |
+| **Search everywhere** | `⌃ ⌥ ⌘ S` | `Ctrl + Alt + Shift + S` |
+| **Cycle views** (Projects ➔ Found ➔ Search ➔ Settings) | `Tab` / `Shift + Tab` | `Tab` / `Shift + Tab` |
+| **Quick Search** from Projects or Settings | `/` | `/` |
+| **New chat** (in current project/folder) | `⌘ N` | `Ctrl + N` |
+| **New chat with…** (choose harness) | `⇧ ⌘ N` | `Shift + Ctrl + N` |
+| **Resume chat** | `Enter` | `Enter` |
+| **Fold / unfold project** | `←` / `→` | `←` / `→` |
+| **Context menu / Actions** | `Shift + F10` | `Shift + F10` |
+| **Copy resume command** | `⌃ Y` | `Ctrl + Y` |
+| **Dismiss / Clear search / Close modal** | `Esc` | `Esc` |
+
+Inside any text field, standard terminal editing shortcuts just work (`⌘A`/`Ctrl+A` select all, `⌘⌫`/`Ctrl+U` delete line prefix, `⌥⌫`/`Ctrl+⌫` delete word).
+
+---
+
+## Supported Coding Harnesses
+
+| Agent | Fresh Launch Command | Native Resume | Deletion Support |
+|---|---|---|---|
+| **OMP** | `omp --cwd <primary> [--add-dir <extra>...]` | `omp --resume <path>` | Transcript + artifact unlinking |
+| **Claude Code** | `claude [--add-dir <extra>...]` | `claude --resume <id>` | Exact session history filtering |
+| **Codex** | `codex --cd <primary> [--add-dir <extra>...]` | `codex resume <id>` | `codex delete <uuid> --force` |
+| **Pi** | `pi` | `pi --session <path>` | Exact file unlinking |
+| **OpenCode** | `opencode <primary>` | `opencode --session <id>` | `opencode session delete <id>` |
+| **Cursor** | `cursor-agent` / native CLI | Resumes in directory | Clean database record pruning |
+
+---
+
+## How It Works
+
+- **Non-destructive**: Your original git worktrees, folders, and transcripts are never touched or rearranged.
+- **Fast SQLite FTS**: Full-text indexing runs in a separate local SQLite database (`index.sqlite`), refreshing in the background every two minutes.
+- **Durable Library**: Your custom projects, icons, pins, and preferences are stored in an independent `library.sqlite` so reindexing the cache never wipes your setup.
+
+---
+
+## Manual Build / Development
+
+If you are developing the plugin or want to build from source:
 
 ```sh
 git clone https://github.com/thegeneralist01/tern-projects.git
 cd tern-projects
 ./scripts/build.sh
-tern plugin types .     # optional: regenerate local Luau API stubs
 tern plugin link .
 tern plugin list --json
 ```
 
-The optional build script installs a CLI at `bin/tern-projects` and a Cargo-bin fallback (`~/.cargo/bin/tern-projects` by default). The plugin does not use these paths: it builds and runs its own backend in plugin data. No compiled executable is committed or downloaded.
-
-Native application verification is on **macOS**. Field-editing scenarios exercise macOS, Windows, and Linux runtime modifier values; that is not a claim of native Windows/Linux application testing. Launch planning includes Windows PowerShell argument encoding, but native Windows/Linux delivery remains unverified.
-
-## Projects and chat organization
-
-Click **+** to create a project. Enter a name, choose an icon, and add directories through the path field or the direct-child folder browser. Use **Make primary** to change the launch directory. Duplicate folders are canonicalized and deduplicated; projects may share folders intentionally. Empty projects remain visible. Removing a project never removes chats or source folders.
-
-Automatic membership uses each chat's original working directory and folder ancestry, not a string-prefix match or its Git repository root. A chat can automatically belong to overlapping projects. **Change project** selects an exclusive named project, **Automatic (use source folders)**, or **No project**. Organization never moves transcripts, changes working directories, or rewrites resume commands.
-
-Click a project to expand it; the first five chats are shown. **Show more chats** expands to 25; **Show fewer** returns to the preview. The older-history action opens Search with that project's filter. Recents includes chats already shown in a project or Pinned. Long lists use bounded pages so native row menus remain available. When an action removes the selected occurrence, selection stays on a nearby row.
-
-**Refresh** sits beside **New chat** in the Projects toolbar; it refreshes the cached view and checks source histories in the background.
-
-Right-click a project for **New chat**, **New chat with…**, **Edit project**, or **Remove project**. Discovered folders instead offer **Create project from folder**. Right-click a chat for **Pin/Unpin**, **Change project**, **Archive/Restore**, and **Permanently delete**. The detail dock's **Actions**, also available with Shift+F10, exposes the same choices. Double-click a chat or press Enter to resume it; Copy command and Copy ID remain in the dock.
-
-## New chats and harness settings
-
-**New chat** uses the saved default harness, or asks when no installed default is available. **New chat with…** always asks and does not silently change the default. A harness is a CLI application, not an API/model provider; the plugin does not manage credentials, models, or approval policy.
-
-Executables are discovered from PATH and narrow conventional user-bin directories, then identity-checked using bounded help probes. An unrelated executable named `agent` is not treated as Cursor. The Cursor IDE alone is not a fresh-chat CLI.
-
-OMP, Claude Code, and Codex receive additional source folders through their detected startup options. OMP also receives a generated `autoResume: false` overlay so New chat does not inherit automatic resumption. Unsupported versions/harnesses present the omitted paths and require **Open primary folder only** confirmation; missing extras with supported remaining folders require **Open with remaining folders** confirmation. Missing Primary blocks launch. No in-chat directory command is suggested unless verified for that installed harness.
-
-Normal trust and approval prompts are unchanged. For example, Codex can reject `--add-dir` when its configured permissions are read-only; the plugin does not override that policy. Commands and paths are quoted for shell transport, and launches are restricted to the originating local Tern window.
-
-Color mode applies semantic theme tones to harness icons only; names, titles, and snippets retain normal text colors. Monochrome removes the harness-specific icon tone. Both settings persist immediately.
-
-## Search and keyboard controls
-
-**Worktree** means the pane's Git worktree; **Repository** includes that repository's worktrees; **All** is global. The caption names the scoped directory. Selecting a named project starts at All scope, after which an explicit Worktree or Repository choice intersects that project. An empty intersection is not silently broadened. Clear a named-project filter with its adjacent **×** button. Sorting remains visible as **Newest** or **Best match**.
-
-| Shortcut | macOS | Windows/Linux |
-|---|---|---|
-| Open/focus/close Projects | Cmd+Alt+S | Ctrl+Alt+S |
-| Open/focus/close Search | Ctrl+Alt+Cmd+S | Ctrl+Alt+Shift+S |
-
-Settings is available in the palette without a default chord. If a preset suppresses plugin defaults, bind `plugin.tern-projects.projects`, `plugin.tern-projects.search`, or `plugin.tern-projects.settings` explicitly in Tern settings. Exact old Projects/Search action overrides are migrated when the new plugin starts; unrelated keybinds are preserved.
-
-| Inside the panel | Action |
-|---|---|
-| Tab / Shift+Tab | Cycle My projects, Discovered, Search, Settings; inside a modal, move between its controls |
-| Up / Down | Navigate rows or modal choices |
-| Page Up / Page Down | Move selection by ten rows; cross result-page boundaries |
-| Left / Right in Projects | Collapse / expand; Left on a child selects its parent first |
-| Enter | Activate selected row/control; destructive confirmations initially select Cancel |
-| Shift+F10 | Selected row's Actions sheet, or panel/Search options when nothing is selected |
-| Ctrl+R | Refresh cached view and index in the background |
-| Ctrl+Y | Copy selected chat's resume command |
-| `/` in Projects or Settings | Open Search |
-| Escape | Clear Search or selection, cancel/back out of a modal; Hide while a mutation continues |
-| Cmd+A on macOS / Ctrl+A elsewhere | Select all in Search and project name/path fields |
-| Cmd+Backspace on macOS / Ctrl+U | Delete the field prefix before the cursor |
-| Ctrl+Backspace / Alt+Backspace | Delete the previous whitespace-delimited word |
-
-Typing and pasting replace selected text. Native edits translate UTF-16 selections to UTF-8 boundaries and reject stale or invalid offsets.
-
-Folder browsing has an explicit **Use current folder** row. Enter accepts that row or opens the highlighted child folder; the Add/Start action always names the highlighted target. Tab completes a child folder path. Missing folders and operation errors remain visible inside the active sheet without discarding its draft.
-
-**Hide** does not cancel an already-running save, move, archive, or deletion. Its progress remains visible in the panel; failures are shown with feedback rather than silently retried. Destructive confirmation still starts on Cancel.
-
-## Archive versus permanent deletion
-
-**Archive** is reversible and local to this integration. It hides a chat from normal lists, counts, and search without changing its original history. Restore is available under Settings → Archived chats. Assignment and pin state are retained.
-
-**Permanently delete** removes the original saved chat after a target-specific preview and explicit confirmation. It is not an index-only hide:
-
-- Codex and OpenCode use their identity-verified native per-chat deletion commands.
-- OMP removes its exact transcript, owned sibling artifacts/rewrite backups, and matching title/recap rows.
-- Pi unlinks only its exact transcript; it is not treated as OMP storage.
-- Claude removes exact session-owned history/artifacts and filters only matching `history.jsonl` session IDs. Unverified optional cache layouts are refused, not guessed.
-- Cursor requires the relevant application/store to be idle and removes only exact composer-owned records, explicit descendants, and header references. Shared blobs and working trees are not deleted.
-
-Direct-file/database deletion requires the relevant harness store to be stopped; ambiguous process ownership, changed targets, symlinks, unsupported schemas, or missing native capabilities cause refusal. The plugin never stops applications automatically and never removes project working files/worktrees. Failures after partial filesystem cleanup are reported explicitly. Filesystem secure erasure, external backups, shared caches, and remote/cloud copies are not promised.
-
-## Storage, refresh, and CLI
-
-On macOS the data directory is:
-
-```text
-~/Library/Application Support/Tern/plugin-data/tern-projects/
-```
-
-- `index.sqlite`: disposable history/FTS cache, schema version 1.
-- `library.sqlite`: durable projects, ordered folders, pins, archive/assignment state, and settings; independently versioned and never reset with the cache.
-- `omp-new.yml`: constant fresh-chat overlay.
-
-The panel queries cached rows immediately, indexes changed sources in the background, and refreshes every two minutes. First use has no chats until indexing completes. Source pruning does not discard durable annotations or create phantom chats.
-
-```sh
-bin/tern-projects --db /path/to/index.sqlite index
-bin/tern-projects --db /path/to/index.sqlite projects  # Discovered grouping
-bin/tern-projects --db /path/to/index.sqlite query --scope all --q 'search terms'
-bin/tern-projects --db /path/to/index.sqlite query --scope all --project-id 1
-```
-
-`library` reads one operation JSON object from stdin and returns one JSON object; errors exit nonzero with stderr detail. For isolated fixture homes use `TERN_PROJECTS_HOME`, never the obsolete home override.
-
-## Migration from the former plugin name
-
-Close only old plugin panel panes, not running agent panes. Build first, then unlink the old plugin and copy its databases before opening the new panel:
-
-```sh
-tern plugin unlink tern-sessions
-bin/tern-projects \
-  --db "$HOME/Library/Application Support/Tern/plugin-data/tern-projects/index.sqlite" \
-  migrate-data --from "$HOME/Library/Application Support/Tern/plugin-data/tern-sessions"
-tern plugin link .
-tern plugin reload
-tern plugin list --json
-```
-
-Migration uses SQLite backup, including live WAL contents, and leaves the legacy source untouched. A destination index or library conflict causes refusal rather than overwrite or merge. Do not delete an existing destination library to force migration; retain it and resolve the conflict deliberately. Transient pane state and lock files are not transferred. This product rename does not move the checkout directory or change its remote repository.
-
-## Verification
-
+All backend tests pass with:
 ```sh
 cargo test --manifest-path indexer/Cargo.toml
-./scripts/build.sh
-bin/tern-projects --help
-tern plugin list --json
 ```
 
-Tests use isolated homes and the real CLI. Native source-deletion smoke uses synthetic sessions in authentic temporary Codex/OpenCode stores; no real conversations are deletion fixtures.
+---
 
-### Unreleased — sidebar and interaction polish
+## Changelog
 
-- Clearer visual hierarchy, title-case section headings, compact narrow-pane controls, and aligned project/chat rows.
-- Opaque dialogs, consistent focus rings and primary actions, distinct path/branch details, and quieter empty states.
-- Contextual folder, harness, project, and archive pickers; explicit folder targets; a Start & set default option.
-- Keyboard-accessible project subviews and Search options, adjacent selection after organization actions, and archived-page shortcuts (Ctrl+P / Ctrl+N).
-- Operation errors stay inside their sheet. Busy operations can be hidden without suggesting they were cancelled.
-- First-open database initialization now serializes journal-mode changes as well as schema migration, avoiding SQLite lock errors during concurrent startup.
+### 0.2.3 — Sidebar & Interaction Polish
 
+- **Clean Typography**: Title-case section headers (`Pinned`, `Projects`, `Folders`, `Recents`) with aligned margins and a quick `+` button to create projects.
+- **Opaque Modals**: Overlay cards, dialogs, and menus now use solid backgrounds to prevent list items from bleeding through.
+- **Smarter Path Presentation**: Long paths truncate cleanly in the middle; git branch names (`⎇ main`) stay pinned on the right without clipping.
+- **One-Handed Navigation**: 4-stop `Tab` navigation across views, `Shift+F10` options menu, keyboard-navigable archived pages (`Ctrl+P`/`Ctrl+N`), and non-modal `Esc` hide for long operations.
+- **Concurrency Fix**: Serialized database initialization lock prevents SQLite busy errors when Tern loads concurrent requests on startup.
 
-### 0.2.2 — concurrent first-run initialization
+### 0.2.2 — Concurrent First-Run Initialization
 
-Index schema migration now runs in one SQLite write transaction and rechecks the schema version after obtaining the lock. Concurrent Index, Search, and Library requests no longer race to create `sessions_fts` or discard another request's newly indexed cache. Failed migrations roll back instead of leaving a partial schema.
+- Index schema migration runs in a single SQLite write transaction with lock verification to eliminate startup races.
+- Automatic backend compilation on plugin load.
 
-If an earlier installation reported `table sessions_fts already exists`, update with `tern plugin install github.com/thegeneralist01/tern-projects --force`, then reopen Projects or Refresh. The backend rebuilds automatically; no database deletion is required. Project metadata and original harness histories are untouched.
+---
 
 ## License
 
