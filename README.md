@@ -16,7 +16,13 @@ Run this inside Tern:
 tern plugin install github.com/thegeneralist01/tern-projects
 ```
 
-That's it. Tern fetches the plugin, and the background engine builds automatically on first load. No manual compile steps, no extra configuration. Open **Projects** from your command palette or press `⌘⌥S`.
+**Toggle the sidebar:**
+- **macOS:** `⌘ ⌥ S`
+- **Windows / Linux:** `Ctrl + Alt + S`
+
+*(Or open **Projects** from the Tern command palette).*
+
+That's it. Tern fetches the plugin, and the background engine builds automatically on first load. No manual compile steps, no extra configuration.
 
 To update later:
 ```sh
@@ -29,9 +35,10 @@ tern plugin install github.com/thegeneralist01/tern-projects --force
 
 If you use multiple AI coding agents, your sessions are scattered across hidden SQLite databases and JSONL files. `tern-projects` unifies them into a fast, native sidebar:
 
-- 📁 **Curated "My Projects"** — Group folders into named projects (like an app, its backend, and documentation) with custom icons. Set a **Primary folder** so new chats always start in the right root.
+- 📁 **Curated "My Projects" & Multi-Folder Workspaces** — Real projects rarely live in a single directory. Group an app, its backend API, shared libraries, and documentation into one named project with a custom icon.
+- 🎯 **Primary Launch Directories** — Pick one folder as **Primary** (where fresh agent sessions spawn), while additional directories are automatically supplied via `--add-dir` to harnesses that support multi-folder workspaces (OMP, Claude Code, Codex).
 - 🔍 **Instant Full-Text Search** — FTS5-powered search across all your past sessions. Filter by **Worktree**, **Repository**, or **All history** with live keyword highlighting.
-- 🚀 **Fresh Chat Launching** — Press `⌘N` to launch a new chat in your preferred CLI (`omp`, `claude`, `codex`, `pi`, `opencode`, or `cursor`). Multi-folder projects pass `--add-dir` flags through automatically.
+- 🚀 **Fresh Chat Launching** — Press `⌘N` (`Ctrl+N`) to launch a new chat in your preferred CLI (`omp`, `claude`, `codex`, `pi`, `opencode`, or `cursor`).
 - 📌 **Global Pins & Recents** — Keep critical threads pinned to the top of your sidebar. Recents keeps your 15 most recent chats one click away.
 - 🗄️ **Local Archiving & Safe Deletion** — Archive threads to hide them without losing data, or permanently delete sessions via verified native CLI calls.
 
@@ -63,14 +70,14 @@ Inside any text field, standard terminal editing shortcuts just work (`⌘A`/`Ct
 
 ## Supported Coding Harnesses
 
-| Agent | Fresh Launch Command | Native Resume | Deletion Support |
-|---|---|---|---|
-| **OMP** | `omp --cwd <primary> [--add-dir <extra>...]` | `omp --resume <path>` | Transcript + artifact unlinking |
-| **Claude Code** | `claude [--add-dir <extra>...]` | `claude --resume <id>` | Exact session history filtering |
-| **Codex** | `codex --cd <primary> [--add-dir <extra>...]` | `codex resume <id>` | `codex delete <uuid> --force` |
-| **Pi** | `pi` | `pi --session <path>` | Exact file unlinking |
-| **OpenCode** | `opencode <primary>` | `opencode --session <id>` | `opencode session delete <id>` |
-| **Cursor** | `cursor-agent` / native CLI | Resumes in directory | Clean database record pruning |
+| Agent | Fresh Launch Command | Native Resume | Multi-Folder Support | Deletion Support |
+|---|---|---|---|---|
+| **OMP** | `omp --cwd <primary> [--add-dir <extra>...]` | `omp --resume <path>` | ✅ Multiple `--add-dir` | Transcript + artifact unlinking |
+| **Claude Code** | `claude [--add-dir <extra>...]` | `claude --resume <id>` | ✅ Multiple `--add-dir` | Exact session history filtering |
+| **Codex** | `codex --cd <primary> [--add-dir <extra>...]` | `codex resume <id>` | ✅ Multiple `--add-dir` | `codex delete <uuid> --force` |
+| **Pi** | `pi` | `pi --session <path>` | Single root | Exact file unlinking |
+| **OpenCode** | `opencode <primary>` | `opencode --session <id>` | Single root | `opencode session delete <id>` |
+| **Cursor** | `cursor-agent` / native CLI | Resumes in directory | Directory | Clean database record pruning |
 
 ---
 
@@ -82,42 +89,18 @@ Inside any text field, standard terminal editing shortcuts just work (`⌘A`/`Ct
 
 ---
 
-## Manual Build / Development
+## Contributing
 
-If you are developing the plugin or want to build from source:
-
-```sh
-git clone https://github.com/thegeneralist01/tern-projects.git
-cd tern-projects
-./scripts/build.sh
-tern plugin link .
-tern plugin list --json
-```
-
-All backend tests pass with:
-```sh
-cargo test --manifest-path indexer/Cargo.toml
-```
+Contributions are welcome! Whether you are fixing a bug, improving Luau block performance, or adding support for a new AI coding assistant, see [CONTRIBUTING.md](CONTRIBUTING.md) for architecture notes and step-by-step instructions.
 
 ---
 
 ## Changelog
 
-### 0.2.3 — Sidebar & Interaction Polish
-
-- **Clean Typography**: Title-case section headers (`Pinned`, `Projects`, `Folders`, `Recents`) with aligned margins and a quick `+` button to create projects.
-- **Opaque Modals**: Overlay cards, dialogs, and menus now use solid backgrounds to prevent list items from bleeding through.
-- **Smarter Path Presentation**: Long paths truncate cleanly in the middle; git branch names (`⎇ main`) stay pinned on the right without clipping.
-- **One-Handed Navigation**: 4-stop `Tab` navigation across views, `Shift+F10` options menu, keyboard-navigable archived pages (`Ctrl+P`/`Ctrl+N`), and non-modal `Esc` hide for long operations.
-- **Concurrency Fix**: Serialized database initialization lock prevents SQLite busy errors when Tern loads concurrent requests on startup.
-
-### 0.2.2 — Concurrent First-Run Initialization
-
-- Index schema migration runs in a single SQLite write transaction with lock verification to eliminate startup races.
-- Automatic backend compilation on plugin load.
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ---
 
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 thegeneralist01

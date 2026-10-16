@@ -1,73 +1,110 @@
 # AGENTS.md — tern-projects
 
+A high-level guide for AI agents working in this repository.
+
 ## Repo layout
 
 ```
 plugin.toml          Tern plugin manifest
-host.luau            Host half: registers the panel block
-window.luau          Window half: keybind migration, toggles, guarded launch/resume routes
-blocks/panel.luau    Projects (My Projects / Discovered), Search, Settings
-lib/cli.luau         Binary discovery, CLI invocation, JSON decode
-lib/fmt.luau         Age formatting, agent labels/icons, pct encode, snippet spans
-lib/textfield.luau   UTF-8 text field (copied verbatim from tern-agent-scheduler)
-lib/input.luau       Shared shortcuts and native UTF-16 edit handling
-lib/project-editor.luau  Unsaved project draft and direct-child folder browser
-indexer/             Rust crate `tern-projects` — the CLI binary
-  src/main.rs        CLI: index, query, projects, library, migrate-data
-  src/model.rs       Shared types: Candidate, Parsed, Resume, SessionJson
-  src/text.rs        clean_user, one_line, cap_body, shell_join, iso_ms
-  src/git.rs         Git worktree resolution (file-only, no git subprocess)
-  src/db.rs          SQLite open/migrate/upsert/delete helpers
-  src/library.rs     Durable metadata schema, CRUD, folder membership
-  src/sessions.rs    Shared annotation projection, scopes, counts and paging
-  src/harnesses.rs   Identity-verified discovery and fresh launch plans
-  src/delete*.rs     Fail-closed per-harness source deletion
-  src/adapters/      One file per agent (claude, codex, omp, pi, opencode, cursor)
-  tests/             Real-binary integration tests with isolated homes
-scripts/build.sh     Build the Rust binary and copy to bin/
+styles.css           Theme & layout styling for panel surfaces
+CHANGELOG.md         Release history and notable changes
+CONTRIBUTING.md      Development workflows and PR guidelines
+LICENSE              Repository license
+host.luau            Host process half: registers the panel block
+window.luau          Window process half: keybind migration, toggles, launch/resume routes
+blocks/panel.luau    Main UI: Projects (My Projects / Discovered), Search, Settings
+lib/backend.luau     Automatic Cargo build at host startup, binary cache, request queuing
+lib/cli.luau         Binary discovery, CLI invocation, JSON decoding
+lib/fmt.luau         Formatting helpers: dates, agent labels/icons, URL encoding, snippets
+lib/input.luau       Keyboard shortcuts and native UTF-16 edit handling
+lib/picker.luau      Modal picker component for selection sheets
+lib/project-editor.luau  Unsaved project draft state and child directory browser
+lib/textfield.luau   UTF-8 text field component
+lib/ui.luau          Reusable UI elements, layout widgets, and list views
+indexer/             Rust backend (`tern-projects` CLI binary)
+  src/main.rs        CLI subcommands: index, query, projects, library, migrate-data
+  src/model.rs       Data types: Candidate, Parsed, Resume, SessionJson
+  src/text.rs        String utilities: clean_user, shell_join, ISO timestamps
+  src/git.rs         Filesystem-based Git repository and worktree resolution
+  src/db.rs          Disposable index SQLite schema, migrations, and queries
+  src/library.rs     Durable user library SQLite schema, CRUD, folder membership
+  src/sessions.rs    Session projections, scopes, annotations, counts, and paging
+  src/harnesses.rs   Identity-verified CLI discovery and fresh-chat launch planning
+  src/delete*.rs     Fail-closed per-harness source deletion logic
+  src/adapters/      Session adapters for harnesses (claude, codex, omp, pi, opencode, cursor)
+  tests/             Real-binary integration test suites with isolated environments
+scripts/build.sh     Build helper: compiles release binary to bin/
 bin/tern-projects    Compiled binary (gitignored)
 tern.d.luau          Generated Tern type stubs (gitignored)
 ```
 
-## VCS
+## Architecture Overview
 
-This repo has `.jj` — prefer `jj` for all version-control operations. No mutating `git` commands unless explicitly asked.
+`tern-projects` is a curated project manager, search engine, and launcher for AI agent histories, built as a Tern plugin.
 
-## Building
+1. **Host / Window Split**:
+   - **Host** (`host.luau`): Runs in the Tern host process. Registers blocks, manages persistent host state, and triggers on-demand background builds (`lib/backend.luau`).
+   - **Window** (`window.luau`): Runs in each Tern window. Handles keyboard shortcuts, action palette commands, and dispatches IPC launch/resume routes (`tern-projects://launch`, `tern-projects://resume`).
+
+2. **Frontend UI (Luau)**:
+   - `blocks/panel.luau`: Primary sidebar UI featuring three main views: Projects (My Projects & Discovered), Search (scoped FTS), and Settings.
+   - `lib/`: Reusable components (`ui.luau`, `picker.luau`, `project-editor.luau`, `textfield.luau`, `input.luau`).
+
+3. **Backend CLI (Rust)**:
+   - A native Rust binary (`indexer/`) invoked via stdin/stdout JSON requests.
+   - Handles background filesystem indexing, full-text search (SQLite FTS5), metadata queries, harness detection, and atomic source chat deletions.
+
+## VCS Conventions
+
+This repository uses Jujutsu (`.jj`) as its primary version-control interface.
+- Always prefer `jj` commands (`jj status`, `jj describe`, `jj diff`, `jj new`) for VCS tasks.
+- Avoid destructive or mutating `git` commands unless specifically requested.
+
+## Build & Test Commands
 
 ```sh
-./scripts/build.sh          # release binary → bin/tern-projects + cargo fallback
-cargo test --manifest-path indexer/Cargo.toml  # run all tests
-tern plugin types .         # regenerate tern.d.luau after Tern upgrades
-tern plugin link .          # (re)link; only needed once after first clone
-tern plugin list            # verify: both plugins show "ready"
+./scripts/build.sh                                # Build release binary into bin/tern-projects
+cargo test --manifest-path indexer/Cargo.toml     # Run backend unit and integration tests
+tern plugin types .                              # Regenerate tern.d.luau after Tern updates
+tern plugin link .                               # Link plugin to local Tern instance
+tern plugin reload                               # Reload plugin in running Tern instance
 ```
 
-## Key invariants
+## Core Invariants
 
-- **Binary path**: `lib/backend.luau` automatically builds with Cargo at host startup and queues CLI requests until ready. The executable and exact-source cache stamp live in `<plugin.data>/backend/`; Rust source/manifest/lock changes invalidate the cache on reload. No bundled or global binary fallback.
-- **Data path**: `<plugin.data>/index.sqlite` and sibling durable `library.sqlite` — under `~/Library/Application Support/Tern/plugin-data/tern-projects` on macOS.
-- **Indexer schema version** = 1 (in `db.rs`). Bump it when the schema changes; this forces a full reindex.
-- **Library schema version** = 1, independent of the disposable index. Never drop durable project/chat/settings data during a cache rebuild.
-- **Migration**: `migrate-data --from <legacy-data-directory>` uses SQLite backup, refuses destination conflicts, and retains the source. No old routes/binary aliases.
-- **Native menus**: this Tern build displays `=value` in menu labels. Use plain native menu actions with the originating item ID; explicit Actions sheets carry percent-encoded targets.
-- **Deletion verification**: synthetic fixture conversations only. Native Codex/OpenCode use their real per-chat commands; direct operations require proven source ownership and an idle store. Never delete project files/worktrees.
-- **OMP/Pi message format**: role and content are nested under a `message` sub-object (`record.message.role`, `record.message.content`), not at the top level.
-- **Codex source of truth**: the DB (`state_5.sqlite` / `thread_history_1.sqlite`). Rollout JSONL files are a fallback only — 469 of 473 visible threads have no rollout file.
-- **FTS snippet markers**: `\x01` (open highlight) and `\x02` (close highlight), set via `char(1)` / `char(2)` in the SQLite snippet() call. `fmt.snippet_spans` in Luau converts these to `ui.span(…, "mark")`.
-- **PaneInfo field**: `.pane` (not `.id`) for the pane ID — both in `tern.pane.list()` (host) and `cx.session:panes()` (window).
+- **Durable Library vs. Disposable Index**:
+  - `index.sqlite` is a rebuildable cache of history transcripts. Schema version bumps force a reindex.
+  - `library.sqlite` stores durable user configurations (curated projects, folder associations, custom pins, chat assignments, global settings). Never drop or clear `library.sqlite` during index rebuilds.
+- **Automatic Compilation**:
+  - `lib/backend.luau` automatically compiles the Rust binary with Cargo when the plugin loads and caches the binary inside `<plugin.data>/backend/`. Requests queue until compilation finishes.
+- **Fail-Closed Deletion Safety**:
+  - Permanent chat deletion verifies source identity and idle store conditions before removing any files or database records.
+  - Harnesses with native CLI commands (e.g. Codex, OpenCode) use their verified native CLI deletion subcommands.
+  - Harnesses without native deletion (OMP, Claude, Pi, Cursor) remove only verified session files/artifacts and refuse if the process is running or store ownership cannot be proven.
+  - Never delete user project files, repositories, or worktrees during chat deletion.
+- **Launch and Resume Contracts**:
+  - Fresh chats launch with the primary project directory as `cwd`. Any additional folders are passed via harness-supported CLI flags (e.g. `--add-dir`), or a warning is surfaced before launching primary-only.
+  - Command generation must be safely quoted per OS (`shell_join` on Unix, Base64-encoded command blocks on Windows).
 
-## Adding a new agent
+## Code Conventions
 
-1. Add `src/adapters/<agent>.rs` implementing `Adapter`.
-2. Register it in `run_index` in `main.rs` (the `adapters` Vec).
-3. Add fixture files under `tests/fixtures/home/` and assert on its uid in `tests/index.rs`.
-4. Add label/icon entries to `fmt.agent_label` / `fmt.agent_icon` in `lib/fmt.luau`.
-5. Add the resume argv to the plan doc and verify with a real session.
+### Luau
+- Every file MUST begin with `--!strict`.
+- Window scripts (`window.luau`) must not call host-only APIs (`tern.fs.*`, `tern.pane.list`).
+- Guard against nil execution contexts and check pane/generation liveness before applying async CLI callback results.
+- Avoid text field cursor mismatches: use `lib/input.luau` for consistent native UTF-16 edit conversions.
 
-## Luau style
+### Rust
+- Clean cutovers: avoid deprecated paths, dead feature flags, and backward-compatibility shims.
+- All database operations across tables or multi-step mutations must use transactions with an active busy timeout (5000ms).
+- Keep adapters isolated in `indexer/src/adapters/` with uniform error handling via `anyhow`.
+- Tests must run against isolated temporary home directories (`tests/fixtures/home/`) using real CLI executions.
 
-- `--!strict` in every file.
-- Host-only APIs (`tern.fs.*`, `tern.pane.list`) are never called from `window.luau`.
-- `(tern :: any).process.run(argv, opts, cb)` — use a local alias to avoid the leading `(` ambiguity that Luau rejects with a bare `;`.
-- `textfield.key(f, k, false)` does **not** handle `enter`/`tab`/`escape` — the block's `key` handler must intercept those first.
+## Adding a New Harness / Adapter
+
+1. Implement the `Adapter` trait in `indexer/src/adapters/<harness>.rs`.
+2. Register the adapter in `indexer/src/adapters/mod.rs` and `indexer/src/main.rs`.
+3. Add CLI detection, capabilities, and launch plans in `indexer/src/harnesses.rs`.
+4. Add fail-closed deletion verification in `indexer/src/delete.rs` / `indexer/src/delete_*.rs`.
+5. Update UI labels and icons in `lib/fmt.luau`.
+6. Add integration test fixtures and assertions under `indexer/tests/`.
