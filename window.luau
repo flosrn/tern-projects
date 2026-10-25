@@ -16,10 +16,19 @@ local WIDTH = 44
 local last_mode: { [number]: string } = {}
 local prev_focus: { [number]: number } = {}
 
+-- Look a pane up through the window's pane list: cx.session:pane(id) can return nil for a live pane.
+local function find_pane(cx: SessionContext, id: number?): PaneInfo?
+	if id == nil then return nil end
+	for _, p in cx.session:panes() do
+		if p.pane == id then return p end
+	end
+	return nil
+end
+
 -- Toggle or open the projects panel in `mode` for the current tab.
 local function toggle(cx: SessionContext, mode: string)
 	local f = cx.session:focused()
-	local fi = f ~= nil and cx.session:pane(f) or nil
+	local fi = find_pane(cx, f)
 	local tab = fi ~= nil and fi.tab or nil
 	if tab == nil then
 		return
@@ -70,6 +79,10 @@ local function toggle(cx: SessionContext, mode: string)
 	pcall(tern.fs.remove, tern.plugin.data .. "/panel-cols")
 	local new_cwd = fi ~= nil and (fi.cwd or "") or ""
 	local new_pane = cx.layout:split(f :: number, "left", { block = KIND, args = { mode, new_cwd } })
+	if new_pane == nil then
+		-- Tern 0.9.5 cannot resolve some live pane ids passed back to split; open beside the focused pane instead.
+		new_pane = cx:new_block(KIND, { mode, new_cwd }, "split")
+	end
 	if new_pane == nil then
 		cx:toast("error", "Projects block unavailable", "tern plugin list")
 		return
@@ -159,7 +172,7 @@ tern.route.link(function(link: any, cx: SessionContext)
 	if link.pane == nil or cx.session:focused() ~= link.pane then
 		return { handled = true }
 	end
-	local origin = cx.session:pane(link.pane)
+	local origin = find_pane(cx, link.pane)
 	if origin == nil or origin.block ~= KIND then
 		-- A custom URL in unrelated terminal/chat content is not a launch request.
 		return { handled = true }
